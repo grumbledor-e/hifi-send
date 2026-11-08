@@ -29,9 +29,7 @@ Start at **500 ms**. Disconnect before changing the buffer, then apply, refresh 
 
 ### compatibility
 
-Tested setup: **Norns Shield / Raspberry Pi 3, Raspbian Bullseye, OwnTone 29.3**, with **Yamaha R-N303** and **Cambridge Audio MXN10**. The MXN10 can feed an amplifier such as the Arcam A25+.
-
-AirPlay-capable Sonos models are expected to work, but have not been tested with this mod. **Play:5 Gen 1 and Play:1 have no direct support.** Password/PIN entry, automatic reconnect and synchronised multiroom playback are not included.
+Tested setup: **Norns Shield / Raspberry Pi 3, Raspbian Bullseye, OwnTone 29.3**, with **Yamaha R-N303** and **Cambridge Audio MXN10**.
 
 ### install
 
