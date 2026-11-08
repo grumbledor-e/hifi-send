@@ -10,7 +10,7 @@ A background mod that sends the main stereo mix to an AirPlay or Chromecast rece
 
 ### listen
 
-Open **SYSTEM → MODS → hifi-send** (or **hifi-send-0.2.2** for the versioned repository).
+Open **SYSTEM → MODS → hifi-send**.
 
 | Control | Action |
 | :--- | :--- |
@@ -29,24 +29,26 @@ Start at **500 ms**. Disconnect before changing the buffer, then apply, refresh 
 
 ### compatibility
 
-Tested setup: **Norns Shield / Raspberry Pi 3, Raspbian Bullseye, OwnTone 29.3**, with **Yamaha R-N303** and **Cambridge Audio MXN10**.
+Tested setup: **Norns Shield / Raspberry Pi 3, Raspbian Bullseye, OwnTone 29.3**, with **Yamaha R-N303** and **Cambridge Audio MXN10**. The MXN10 can feed an amplifier such as the Arcam A25+.
+
+AirPlay-capable Sonos models are expected to work, but have not been tested with this mod. **Play:5 Gen 1 and Play:1 have no direct support.** Password/PIN entry, automatic reconnect and synchronised multiroom playback are not included.
 
 ### install
 
 Paste into Maiden:
 
 ```text
-;install https://github.com/grumbledor-e/hifi-send-0.2.2
+;install https://github.com/grumbledor-e/hifi-send
 ```
 
 Then SSH into Norns and run:
 
 ```bash
-cd ~/dust/code/hifi-send-0.2.2
+cd ~/dust/code/hifi-send
 bash setup.sh
 ```
 
-Enable **hifi-send-0.2.2** in **SYSTEM → MODS**, then reboot.
+Enable **hifi-send** in **SYSTEM → MODS**, then reboot.
 
 The installer handles dependencies and OwnTone setup on Bullseye.
 

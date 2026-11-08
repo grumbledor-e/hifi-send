@@ -4,10 +4,21 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 [[ $EUID != 0 ]] || { echo 'Run as the normal Norns user, without sudo.'; exit 1; }
 project_dir="$PWD"
-case "$project_dir" in
- "$HOME/dust/code/hifi-send"|"$HOME/dust/code/hifi-send-0.2.2") ;;
- *) echo 'Place the project in ~/dust/code/hifi-send or ~/dust/code/hifi-send-0.2.2.'; exit 1 ;;
-esac
+[[ "$project_dir" == "$HOME/dust/code/hifi-send" ]] || {
+ echo 'Norns mod folders cannot contain dots. Install this project as ~/dust/code/hifi-send.'
+ exit 1
+}
+# A leftover invalid mod directory can break Norns' mod scanner even when disabled.
+for mod_file in "$HOME"/dust/code/*/lib/mod.lua; do
+ [[ -f "$mod_file" ]] || continue
+ mod_dir="${mod_file%/lib/mod.lua}"
+ mod_name="${mod_dir##*/}"
+ [[ "$mod_name" =~ ^[a-zA-Z0-9_-]+$ ]] || {
+  echo "Invalid Norns mod folder: $mod_name"
+  echo 'Move this folder outside dust/code, reboot Norns, and rerun setup.'
+  exit 1
+ }
+done
 account="$(id -un)"
 [[ "$account" =~ ^[a-zA-Z0-9_-]+$ && "$HOME" =~ ^/[a-zA-Z0-9_./-]+$ ]] || { echo 'Unsupported username or home path.'; exit 1; }
 # Resolve dependencies automatically; fresh repository setup is Bullseye-only.

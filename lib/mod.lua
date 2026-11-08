@@ -1,16 +1,7 @@
 local mods = require 'core/mods'
-local root = _path.code .. 'hifi-send/'
 local data = _path.data .. 'hifi-send/'
 local state = {message='setup required', devices={}, target='', volume=20, heartbeat=0, buffer=500, draft=500}
 local row, serial, timer = 1, 0, nil
-local function quote(s) return "'" .. s:gsub("'", "'\\''") .. "'" end
-local function launch()
-  local f = io.open(data .. 'config.json', 'r')
-  if not f then return end
-  f:close()
-  -- Worker is managed by norns-hifi-worker.service.
-
-end
 local function read()
   local f = io.open(data .. 'status.tsv', 'r')
   if not f then return end
@@ -41,7 +32,7 @@ local function send(command)
 end
 local menu = {}
 menu.init=function()
-  launch(); read(); state.draft=state.buffer
+  read(); state.draft=state.buffer
   timer=metro.init(function() read(); mods.menu.redraw() end,1,-1)
   timer:start()
 end
@@ -94,6 +85,5 @@ menu.redraw=function()
   screen.level(4); screen.move(0,63); screen.text(row==3 and 'e3 adjust   k3 apply' or 'e2 select   k3 connect   e3 vol')
   screen.update()
 end
-mods.hook.register('system_post_startup','hifi-send startup',launch)
 mods.menu.register(mods.this_name,menu)
 return {stop=function() send('stop') end}

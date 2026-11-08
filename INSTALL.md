@@ -1,15 +1,15 @@
 # install · hifi send
 
-**Copy the ZIP → connect → run setup.** The installer handles dependencies, OwnTone and services. Internet access is needed on Norns for a fresh install; keep your computer and Norns on the same network.
+**Install in Maiden → connect → run setup.** The installer handles dependencies, OwnTone and services. Internet access is needed on Norns for a fresh install; keep your computer and Norns on the same network.
 
 Automatic fresh installation currently targets **Raspbian Bullseye**, tested with a Pi 3 Norns Shield. Other OS versions need [OwnTone 29+ installed separately](https://owntone.github.io/owntone-server/installation/) before running setup. The new automated installer has been simulated locally, not yet tested on a fresh Norns.
 
-## Maiden route · no ZIP transfer
+## Maiden install
 
 Paste this into Maiden's command line, to install the project:
 
 ```text
-;install https://github.com/grumbledor-e/hifi-send-0.2.2
+;install https://github.com/grumbledor-e/hifi-send
 ```
 
 Once installed, open Terminal on Mac, PowerShell on Windows, or Terminal → penguin on Chromebook:
@@ -21,13 +21,13 @@ ssh we@norns.local
 Then, in the Norns SSH session:
 
 ```bash
-cd ~/dust/code/hifi-send-0.2.2
+cd ~/dust/code/hifi-send
 bash setup.sh
 ```
 
-After **Setup complete**, enable **hifi-send-0.2.2** in **SYSTEM → MODS** and reboot. Maiden downloads the project; this one SSH setup installs its background audio services. If upgrading from the older `hifi-send` folder, disable that old mod so only one copy is loaded.
+After **Setup complete**, enable **hifi-send** in **SYSTEM → MODS** and reboot. Maiden downloads the project; this one SSH setup installs its background audio services. Keep only one installed copy. The folder must be named `hifi-send`; use GitHub release tags for version numbers.
 
-**Remove:** in SSH, run `bash ~/dust/code/hifi-send-0.2.2/uninstall.sh` before deleting the folder, then disable the mod and reboot.
+**Remove:** in SSH, run `bash ~/dust/code/hifi-send/uninstall.sh` before deleting the folder, then disable the mod and reboot.
 
 ---
 
@@ -89,6 +89,15 @@ For an update, disconnect the stream and follow these same steps. Existing data 
 Enable **hifi-send** in **SYSTEM → MODS**, then save your work and reboot Norns. Open its mod menu, refresh devices and connect. Streaming continues when you leave the menu or close SSH. On updates, reboot to load the new menu too.
 
 **That's the complete normal installation.**
+
+<details>
+<summary><strong>Recover from the old dotted folder name</strong></summary>
+
+Norns' mod scanner accepts letters, numbers, underscores and hyphens. A folder such as `hifi-send-0.2.2` is invalid even when its mod is disabled. Move any such old folder outside `dust/code` before opening MODS again; keep data/settings. Reboot after removing an installed mod before revisiting the MODS menu, so its list selection resets. Do not edit Norns core or delete other mods.
+
+If you renamed the GitHub repository, use `https://github.com/grumbledor-e/hifi-send` directly. Old GitHub URLs may redirect but can still produce the old directory name in an installer.
+
+</details>
 
 <details>
 <summary><strong>If something goes wrong</strong></summary>
