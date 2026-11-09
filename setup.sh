@@ -94,6 +94,8 @@ data_dir="$HOME/dust/data/hifi-send"
 mkdir -p "$data_dir/audio" "$data_dir/cache" "$data_dir/commands"
 if [[ ! -e "$data_dir/audio/norns.pipe" ]]; then mkfifo -m 600 "$data_dir/audio/norns.pipe"; fi
 [[ -p "$data_dir/audio/norns.pipe" ]] || { echo 'audio/norns.pipe must be a FIFO.'; exit 1; }
+# OwnTone reads now-playing info (script, author, screen) from this pipe.
+if [[ ! -e "$data_dir/audio/norns.pipe.metadata" ]]; then mkfifo -m 600 "$data_dir/audio/norns.pipe.metadata"; fi
 python3 - <<'PY'
 from pathlib import Path
 import re, secrets
