@@ -16,10 +16,16 @@ Open **SYSTEM → MODS → hifi-send**.
 | :--- | :--- |
 | **E2** | Select a device or action |
 | **K3** | Connect, disconnect, refresh or apply |
-| **E3** | Wireless volume; adjust buffer on its row |
+| **E3** | Wireless volume; adjust buffer or cover on their rows |
 | **K2** | Return to norns; streaming continues |
 
 **[air]** is AirPlay. **[cast]** is Chromecast. One receiver at a time.
+
+### now playing
+
+Receivers that show track info display the running script as the title, its author as the artist, and the loaded PSET's name as the album (**norns** until a PSET is loaded). The cover is a snapshot of the norns screen. Set how often it refreshes on the **cover** row: off, or every 3–60 seconds. Menus are never captured.
+
+The author comes from the norns.community catalog, else an `@name` in the script's header, else the GitHub owner of the install. Run `setup.sh` again after updating, so OwnTone finds its metadata pipe.
 
 ### a little distance
 

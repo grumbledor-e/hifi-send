@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """HiFi Send 0.2.2: local file IPC; audio/network work stays outside matron."""
 import argparse
+import base64
+import errno
 import fcntl
 import json
 import os
 from pathlib import Path
 import signal
+import struct
 import re
+import select
 import subprocess
 import time
 import urllib.request
 import urllib.parse
+import zlib
 
 
 def graph(text):
@@ -39,6 +44,69 @@ def sources(ports, explicit=None):
     return result
 
 
+# Now playing: the mod writes the script's name/author and a screen snapshot;
+# OwnTone reads them from a metadata pipe next to the audio pipe, in the
+# Shairport Sync metadata format, and passes them on to the receiver.
+NOW_PLAYING = (('title', 'minm'), ('artist', 'asar'), ('album', 'asal'))
+
+
+def metadata_item(code, data, kind='core'):
+    return ('<item><type>%s</type><code>%s</code><length>%d</length>\n'
+            '<data encoding="base64">\n%s</data></item>\n'
+            % (kind.encode().hex(), code.encode().hex(), len(data),
+               base64.b64encode(data).decode())).encode()
+
+
+def write_fifo(path, payload, timeout=3):
+    """Write to a FIFO without blocking. False if nobody is reading yet."""
+    try:
+        fd = os.open(str(path), os.O_WRONLY | os.O_NONBLOCK)
+    except OSError as error:
+        if error.errno == errno.ENXIO:
+            return False
+        raise
+    try:
+        view = memoryview(payload)
+        deadline = time.monotonic() + timeout
+        while view:
+            try:
+                view = view[os.write(fd, view):]
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    raise RuntimeError('metadata pipe stalled')
+                select.select([], [fd], [], 0.1)
+    finally:
+        os.close(fd)
+    return True
+
+
+# norns screen levels 0..15 to grey, lifted a little so dim pixels show
+SCREEN_W, SCREEN_H, SCALE, COVER = 128, 64, 4, 512
+LEVELS = bytes(round(255 * (level / 15) ** (1 / 1.5)) for level in range(16)) + bytes(240)
+
+
+def png_chunk(kind, body):
+    return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+
+
+def cover_from_screen(raw):
+    """Scale the 128x64 screen (one level byte per pixel) to a square PNG."""
+    if len(raw) != SCREEN_W * SCREEN_H:
+        return None
+    grey = raw.translate(LEVELS)
+    blank = b'\0' * (COVER + 1)  # each PNG row starts with filter byte 0
+    margin = (COVER - SCREEN_H * SCALE) // 2
+    rows = [blank] * margin
+    for y in range(SCREEN_H):
+        line = grey[y * SCREEN_W:(y + 1) * SCREEN_W]
+        wide = b'\0' + bytes(v for v in line for _ in range(SCALE))
+        rows += [wide] * SCALE
+    rows += [blank] * margin
+    header = struct.pack('>IIBBBBB', COVER, COVER, 8, 0, 0, 0, 0)  # 8-bit grey
+    return (b'\x89PNG\r\n\x1a\n' + png_chunk(b'IHDR', header)
+            + png_chunk(b'IDAT', zlib.compress(b''.join(rows), 6)) + png_chunk(b'IEND', b''))
+
+
 def clean(value):
     return str(value).replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
 
@@ -63,6 +131,16 @@ class Bridge:
         self.config = json.loads((data / 'config.json').read_text())
         self.base = 'http://127.0.0.1:3691'
         self.buffer_ms = self.read_buffer()
+        self.meta_pipe = data / 'audio' / 'norns.pipe.metadata'
+        if not self.meta_pipe.exists():
+            os.mkfifo(str(self.meta_pipe), 0o600)
+        self.meta = {}
+        self.meta_stamp = None
+        self.snap_stamp = None
+        self.snap_raw = b''
+        self.cover = None
+        self.meta_dirty = False
+        self.cover_dirty = False
 
     def read_buffer(self):
         match = re.search(r"(?m)^\s*start_buffer_ms\s*=\s*(\d+)", (self.data / 'owntone.conf').read_text())
@@ -145,6 +223,8 @@ class Bridge:
              stdout=subprocess.DEVNULL, stderr=self.log)
         self.target = ident
         self.started = time.monotonic()
+        self.meta_dirty = bool(self.meta)
+        self.cover_dirty = self.cover is not None
         self.message = 'starting'
 
     def route(self):
@@ -174,8 +254,52 @@ class Bridge:
         # This describes reported server state, not proof of audible playback.
         state = self.api('player').get('state', '')
         self.message = 'sending' if output.get('selected') and state == 'play' else 'buffering'
+        if self.message == 'sending':
+            self.push_now_playing()
         if time.monotonic() - self.started > 20 and self.message == 'buffering':
             raise RuntimeError('No playback confirmation; see logs')
+
+    def poll_now_playing(self):
+        """Pick up script info and screen snapshots written by the mod."""
+        info = self.data / 'now-playing.tsv'
+        stamp = info.stat().st_mtime_ns if info.exists() else None
+        if stamp and stamp != self.meta_stamp:
+            self.meta_stamp = stamp
+            fields = dict(line.split('\t', 1) for line in info.read_text().splitlines() if '\t' in line)
+            meta = {key: fields.get(key, '').strip() for key, _ in NOW_PLAYING}
+            if meta != self.meta:
+                self.meta = meta
+                self.meta_dirty = True
+        snap = self.data / 'screen.raw'
+        stamp = snap.stat().st_mtime_ns if snap.exists() else None
+        if self.proc and stamp and stamp != self.snap_stamp:
+            self.snap_stamp = stamp
+            raw = snap.read_bytes()
+            if raw != self.snap_raw:
+                cover = cover_from_screen(raw)
+                if cover:
+                    self.snap_raw = raw
+                    self.cover = cover
+                    self.cover_dirty = True
+
+    def push_now_playing(self):
+        """Send changed info to OwnTone; it only reads the pipe while playing."""
+        payload = b''
+        if self.meta_dirty:
+            payload += b''.join(metadata_item(code, self.meta[key].encode())
+                                for key, code in NOW_PLAYING if self.meta.get(key))
+        if self.cover_dirty and self.cover:
+            payload += metadata_item('PICT', self.cover, 'ssnc')
+        if not payload or not self.meta_pipe.is_fifo():
+            self.meta_dirty = self.cover_dirty = False
+            return
+        try:
+            if write_fifo(self.meta_pipe, payload):
+                self.meta_dirty = self.cover_dirty = False
+        except Exception as error:
+            # Metadata is a nicety: never let it interrupt the audio.
+            self.meta_dirty = self.cover_dirty = False
+            print('now playing:', repr(error), flush=True)
 
     def command(self, text):
         fields = text.rstrip('\n').split('\t')
@@ -225,6 +349,10 @@ class Bridge:
                         self.refresh()
                         last = time.monotonic()
                     if time.monotonic() - last_route > 1:
+                        try:
+                            self.poll_now_playing()
+                        except Exception as error:
+                            print('now playing:', repr(error), flush=True)
                         self.route()
                         last_route = time.monotonic()
                 except Exception as error:
